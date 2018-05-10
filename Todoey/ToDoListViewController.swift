@@ -12,9 +12,15 @@ class ToDoListViewController: UITableViewController {
 
     var itemArray = ["avengers", "infinity", "war"]
     
+    let defaults = UserDefaults.standard
+    
     override func viewDidLoad() {
         super.viewDidLoad()
         // Do any additional setup after loading the view, typically from a nib.
+        
+        if let items = defaults.array(forKey: "ToDoListArray") as? [String] { //that's an optional not ! which gonna force downcast to an array of string . that's why i put if statement
+            itemArray = items
+        }
     }
 
     override func didReceiveMemoryWarning() {
@@ -50,6 +56,9 @@ class ToDoListViewController: UITableViewController {
         
         let action = UIAlertAction(title: "Add Item", style: .default) { (action) in
             self.itemArray.append(textField.text!)
+            
+            self.defaults.set(self.itemArray, forKey: "ToDoListArray")
+            
             self.tableView.reloadData()
         }
         
