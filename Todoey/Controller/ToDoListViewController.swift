@@ -10,28 +10,20 @@ import UIKit
 
 class ToDoListViewController: UITableViewController {
 
-    var itemArray = [Item]()
+    var itemArray : [Item] = [Item]()
+    let dataFilePath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?.appendingPathComponent("Items.plist")
     
-    let defaults = UserDefaults.standard // standard is a singleton inside this class UserDefaults. it points towards the same p list everytime we tap into the UserDefaults and it stays the same across all of our objects and classes
+  //  let defaults = UserDefaults.standard // standard is a singleton inside this class UserDefaults. it points towards the same p list everytime we tap into the UserDefaults and it stays the same across all of our objects and classes
     
     override func viewDidLoad() {
         super.viewDidLoad()
         // Do any additional setup after loading the view, typically from a nib.
-        let newItem1 = Item()
-        newItem1.title = "avengers"
-        self.itemArray.append(newItem1)
         
-        let newItem2 = Item()
-        newItem2.title = "infinity"
-        self.itemArray.append(newItem2)
+        loadItems()
         
-        let newItem3 = Item()
-        newItem3.title = "war"
-        self.itemArray.append(newItem3)
-        
-        if let items = defaults.array(forKey: "ToDoListArray") as? [Item] { //that's an optional not ! which gonna force downcast to an array of string . that's why i put if statement
-            itemArray = items
-        }
+//        if let items = defaults.array(forKey: "ToDoListArray") as? [Item] { //that's an optional not ! which gonna force downcast to an array of string . that's why i put if statement
+//            itemArray = items
+//        }
     }
 
     override func didReceiveMemoryWarning() {
@@ -78,7 +70,7 @@ class ToDoListViewController: UITableViewController {
             newItem.title = textField.text!
             self.itemArray.append(newItem)
             
-            self.defaults.set(self.itemArray, forKey: "ToDoListArray")
+            self.saveItems()
             
             self.tableView.reloadData()
         }
@@ -100,11 +92,34 @@ class ToDoListViewController: UITableViewController {
         
         itemArray[indexPath.row].done = !itemArray[indexPath.row].done
         
-        tableView.reloadData() // forces the tableview to call its data sources methodes again
+        self.saveItems()
         
         tableView.deselectRow(at: indexPath, animated: true) // gray does not stay peremntly on the cell but instead flashes and goes back to being de-selected (fades)
         
+    }
+    
+    func saveItems() {
+        let encoder = PropertyListEncoder()
         
+        do {
+            let data = try encoder.encode(itemArray)
+            try data.write(to: dataFilePath!)
+        } catch {
+            print("Error Encoding item array, \(error)")
+        }
+        
+        tableView.reloadData() // forces the tableview to call its data sources methodes again
+    }
+    
+    func loadItems() {
+        if let data = try? Data(contentsOf: dataFilePath!) {
+            let decoder = PropertyListDecoder()
+            do {
+            itemArray = try decoder.decode([Item].self, from: data)
+            } catch {
+            print("Error Encoding item array, \(error)")
+        }
+        }
     }
     }
     

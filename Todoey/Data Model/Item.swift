@@ -8,7 +8,7 @@
 
 import Foundation
 
-class Item {
+class Item : Codable { // since Swift 4 , Codable means that the class conform to both Codable and Decodable Protocols
     
     var title : String = ""
     var done : Bool = false
