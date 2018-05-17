@@ -7,20 +7,26 @@
 //
 
 import UIKit
+import CoreData
 
 class ToDoListViewController: UITableViewController {
 
-    var itemArray : [Item] = [Item]()
-    let dataFilePath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?.appendingPathComponent("Items.plist")
+    var itemArray = [Item]()
+    
+    var selectedCategory : Category?  { // optional because it's gonna be nil until we set it in the category controller
+        didSet { // everything between this curly braces is goig to happen as soon as selectedCategory gets set with a value
+            loadItems()
+        }
+    }
+    
+    let context = (UIApplication.shared.delegate as! AppDelegate).persistentContainer.viewContext // allows us to access the AppDelegate Object not the class (the blueprint) . in order to get the persistentContainer property
     
   //  let defaults = UserDefaults.standard // standard is a singleton inside this class UserDefaults. it points towards the same p list everytime we tap into the UserDefaults and it stays the same across all of our objects and classes
     
     override func viewDidLoad() {
         super.viewDidLoad()
-        // Do any additional setup after loading the view, typically from a nib.
         
-        loadItems()
-        
+     //   print(FileManager.default.urls(for: .documentDirectory, in: .userDomainMask))
 //        if let items = defaults.array(forKey: "ToDoListArray") as? [Item] { //that's an optional not ! which gonna force downcast to an array of string . that's why i put if statement
 //            itemArray = items
 //        }
@@ -32,7 +38,7 @@ class ToDoListViewController: UITableViewController {
     }
     
 
-    //MARK - TableView DataSourceMethods
+    //MARK: - TableView DataSourceMethods
     
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         
@@ -56,7 +62,7 @@ class ToDoListViewController: UITableViewController {
     }
     
     
-    //MARK - Add New Items
+    //MARK: - Add New Items
     
     @IBAction func addButtonPressed(_ sender: UIBarButtonItem){
     
@@ -66,8 +72,11 @@ class ToDoListViewController: UITableViewController {
         
         let action = UIAlertAction(title: "Add Item", style: .default) { (action) in
             
-            let newItem = Item()
+            let newItem = Item(context: self.context)
             newItem.title = textField.text!
+            newItem.done = false
+            newItem.parentCategory = self.selectedCategory
+            
             self.itemArray.append(newItem)
             
             self.saveItems()
@@ -80,13 +89,17 @@ class ToDoListViewController: UITableViewController {
             textField = alertTextField
         }
         
+        let cancelAction = UIAlertAction(title: "Cancel", style: .cancel) { (action) in
+        }
+        
         alert.addAction(action)
+        alert.addAction(cancelAction)
         
         present(alert, animated: true, completion: nil)
     }
     
     
-    //MARK - TableView Delegate Methods
+    //MARK: - TableView Delegate Methods
     
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         
@@ -98,31 +111,69 @@ class ToDoListViewController: UITableViewController {
         
     }
     
+    //MARK: - Model Manupulation Methods
+    
     func saveItems() {
-        let encoder = PropertyListEncoder()
-        
+    
         do {
-            let data = try encoder.encode(itemArray)
-            try data.write(to: dataFilePath!)
+            try context.save()
         } catch {
-            print("Error Encoding item array, \(error)")
+           print("Error Saving item array, \(error)")
         }
         
         tableView.reloadData() // forces the tableview to call its data sources methodes again
     }
     
-    func loadItems() {
-        if let data = try? Data(contentsOf: dataFilePath!) {
-            let decoder = PropertyListDecoder()
-            do {
-            itemArray = try decoder.decode([Item].self, from: data)
-            } catch {
-            print("Error Encoding item array, \(error)")
+    func loadItems(with request : NSFetchRequest<Item> = Item.fetchRequest(), predicate: NSPredicate? = nil) { //"with" presents an external parameter and "request" an internal one that's used inside this function and = .... is the default value of the request in case we didn't provide a value
+      
+        let categoryPredicate = NSPredicate(format: "parentCategory.name MATCHES %@", selectedCategory!.name!)
+        
+        if let additionalPredicate = predicate {
+            request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [categoryPredicate, additionalPredicate])
+        } else {
+            request.predicate = categoryPredicate
         }
+        
+//        let compoundPredicate = NSCompoundPredicate(andPredicateWithSubpredicates: [categoryPredicate, predicate])
+//
+//        request.predicate = compoundPredicate
+        
+        do {
+            itemArray = try context.fetch(request)
+        } catch {
+            print("Error fetching data from context, \(error)")
         }
+        tableView.reloadData()
     }
+}
+
+//MARK: - SearchBar Methods
+
+extension ToDoListViewController: UISearchBarDelegate {
+    
+    func searchBarSearchButtonClicked(_ searchBar: UISearchBar) {
+        
+        let request : NSFetchRequest<Item> = Item.fetchRequest()
+   
+        let predicate = NSPredicate(format: "title CONTAINS[cd] %@", searchBar.text!)
+        
+        request.sortDescriptors = [NSSortDescriptor(key: "title", ascending: true)]
+        
+        loadItems(with: request, predicate: predicate)
+        
     }
     
+    func searchBar(_ searchBar: UISearchBar, textDidChange searchText: String) {
+        
+        if searchBar.text?.count == 0 {
+            loadItems()
+            
+            DispatchQueue.main.async {
+                searchBar.resignFirstResponder() //we're asking the dispatchqueue to get the main queue and then run this method on it
+            }
+        }
+    }
+}
     
 
 
