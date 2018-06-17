@@ -60,7 +60,7 @@ class CategoryViewController: UITableViewController {
     
     func saveCategories () {
         
-        do{
+        do {
             try context.save()
         } catch {
             print("Error saving category array, \(error)")

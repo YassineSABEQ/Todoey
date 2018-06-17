@@ -80,8 +80,7 @@ class ToDoListViewController: UITableViewController {
             self.itemArray.append(newItem)
             
             self.saveItems()
-            
-            self.tableView.reloadData()
+
         }
         
         alert.addTextField { (alertTextField) in
@@ -125,6 +124,7 @@ class ToDoListViewController: UITableViewController {
     }
     
     func loadItems(with request : NSFetchRequest<Item> = Item.fetchRequest(), predicate: NSPredicate? = nil) { //"with" presents an external parameter and "request" an internal one that's used inside this function and = .... is the default value of the request in case we didn't provide a value
+        // also "with" is used when you call this loadItems function
       
         let categoryPredicate = NSPredicate(format: "parentCategory.name MATCHES %@", selectedCategory!.name!)
         
