@@ -7,12 +7,13 @@
 //
 
 import UIKit
-import CoreData
+import RealmSwift
 
 class CategoryViewController: UITableViewController {
+    
+    let realm = try! Realm() //it throws because the first time an instance is created on a given thread it an fail if your ressources are contrained
 
-    var categories = [Category]()
-    let context = (UIApplication.shared.delegate as! AppDelegate).persistentContainer.viewContext
+    var categories : Results<Category>? // we make it optional
     
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -26,15 +27,13 @@ class CategoryViewController: UITableViewController {
         
         let cell = tableView.dequeueReusableCell(withIdentifier: "CategoryCell", for: indexPath)
         
-        let category = categories[indexPath.row]
-        
-        cell.textLabel?.text = category.name
+        cell.textLabel?.text = categories?[indexPath.row].name ?? "No categories found"
         
         return cell
     }
     
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-       return categories.count
+       return categories?.count ?? 1 // if categories is not null then return count else return 1 . it's called "NIL COALESCING OPERATOR"
     }
     
     //MARK: - TableView Delegate Methods
@@ -51,17 +50,19 @@ class CategoryViewController: UITableViewController {
         let destinationVC = segue.destination as! ToDoListViewController //if we had more than one segue we gonna have to add an if statement of the segue identifier
         
         if let indexPath = tableView.indexPathForSelectedRow {//indexPath is going to identify the current row that is selected. and it's an optional because it might be that no row selected. that's why we use optional binding
-            destinationVC.selectedCategory = categories[indexPath.row]
+            destinationVC.selectedCategory = categories?[indexPath.row]
         }
         
     }
     
     //MARK: - Data Manipulation Methods
     
-    func saveCategories () {
+    func save (category: Category) {
         
         do {
-            try context.save()
+            try realm.write {
+                realm.add(category)
+            }
         } catch {
             print("Error saving category array, \(error)")
         }
@@ -69,13 +70,9 @@ class CategoryViewController: UITableViewController {
         tableView.reloadData()
     }
     
-    func loadCategories(with request : NSFetchRequest<Category> = Category.fetchRequest()) {
-        
-        do {
-            try categories = context.fetch(request)
-        } catch {
-            print("Error fetching category data, \(error)")
-        }
+    func loadCategories() {
+
+        categories = realm.objects(Category.self)
         
         tableView.reloadData()
     }
@@ -95,11 +92,11 @@ class CategoryViewController: UITableViewController {
         
         let action = UIAlertAction(title: "Add Category", style: .default) { (action) in
             
-            let newCategory = Category(context: self.context)
+            let newCategory = Category()
             newCategory.name = textField.text!
-            self.categories.append(newCategory)
+          //  self.categories.append(newCategory) we don't need to append the new object because Results is an autoupdating container
             
-            self.saveCategories()
+            self.save(category: newCategory)
             
             self.tableView.reloadData()
         }
