@@ -8,58 +8,65 @@
 
 import UIKit
 import RealmSwift
+import ChameleonFramework
 
-class ToDoListViewController: UITableViewController {
+class ToDoListViewController: SwipeTableViewController {
 
     let realm = try! Realm()
-    
     var todoItems : Results<Item>?
+
+    @IBOutlet weak var searchBar: UISearchBar!
     
     var selectedCategory : Category?  { // optional because it's gonna be nil until we set it in the category controller
         didSet { // everything between this curly braces is goig to happen as soon as selectedCategory gets set with a value
            loadItems()
         }
     }
-    
-    //let context = (UIApplication.shared.delegate as! AppDelegate).persistentContainer.viewContext // allows us to access the AppDelegate Object not the class (the blueprint) . in order to get the persistentContainer property
-    
-  //  let defaults = UserDefaults.standard // standard is a singleton inside this class UserDefaults. it points towards the same p list everytime we tap into the UserDefaults and it stays the same across all of our objects and classes
-    
+
     override func viewDidLoad() {
         super.viewDidLoad()
-        
-     //   print(FileManager.default.urls(for: .documentDirectory, in: .userDomainMask))
-//        if let items = defaults.array(forKey: "ToDoListArray") as? [Item] { //that's an optional not ! which gonna force downcast to an array of string . that's why i put if statement
-//            itemArray = items
-//        }
+        tableView.separatorStyle = .none
     }
 
-    override func didReceiveMemoryWarning() {
-        super.didReceiveMemoryWarning()
-        // Dispose of any resources that can be recreated.
+    override func viewWillAppear(_ animated: Bool) { // we put the below block of code in viewWillAppear because viewDidLoad loads before the viewController is managed by the navigationController
+        self.title = selectedCategory?.name
+        guard let colorHex = selectedCategory?.colour else { fatalError()} // we use guard let instead of if let when you don't have "else" case and you're sure that it won't crash
+        updateNavBar(withHexCode: colorHex)
     }
     
+    override func viewWillDisappear(_ animated: Bool) {
+        guard let originalColour = UIColor(hexString: "1D9BF6") else { fatalError()}
+        updateNavBar(withHexCode: "1D9BF6")
+    }
+    
+    //MARK: - NavigationBar Setup Methods
+    
+    func updateNavBar (withHexCode colorHexCode : String) {
+        guard let navBar = navigationController?.navigationBar else { fatalError("Navigation Controller does not exist. ")}// Only use them if the application enters an unknown state, a state it doesn't know how to handle. Don't see fatal errors as an easy way out. Remember that your application will crash and burn if it throws a fatal error.
+        guard let navBarColour = UIColor(hexString: colorHexCode) else { fatalError()}
+        navBar.tintColor = ContrastColorOf(navBarColour, returnFlat: true)
+        navBar.largeTitleTextAttributes = [NSAttributedStringKey.foregroundColor : ContrastColorOf(navBarColour, returnFlat: true)]
+        navBar.barTintColor = navBarColour
+        searchBar.barTintColor = navBarColour
+    }
 
-    //MARK: - TableView DataSourceMethods
+    //MARK: - TableView DataSource Methods
     
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        
-        let cell = tableView.dequeueReusableCell(withIdentifier: "ToDoItemCell", for: indexPath) //once the cell dissapears off the screen it comes around the tableview and initialized at the bottom as a new tableview cell 
-        
-        
-        // let cellBis = UITableViewCell(style: .default, reuseIdentifier: "TodoItemCell") once the cell dissapears off the screen it gets deallocated and destroyed. when we scroll back we are getting a brand new brand new cell
+        let cell = super.tableView(tableView, cellForRowAt: indexPath)
+        //once the cell dissapears off the screen it comes around the tableview and initialized at the bottom as a new tableview cell
         if let item = todoItems?[indexPath.row] {
-        
         cell.textLabel?.text = item.title
-        
+        if let colour = UIColor(hexString: selectedCategory!.colour)?.darken(byPercentage: CGFloat(indexPath.row)/CGFloat(todoItems!.count)) { // we know that selectedCategory is not null so, todoItems not null . we add ? to UIColor because hexString may be just random caracters so fi it"s null don't go forward to .darken.... (optional chainning)
+            cell.backgroundColor = colour
+            cell.textLabel?.textColor = ContrastColorOf(colour, returnFlat: true)
+            }
         // Ternary Operator
         // value = condition ? valueIfTrue : valueIfFalse
         cell.accessoryType = item.done ? .checkmark : .none
-        
         } else {
             cell.textLabel?.text = "No items added yet"
         }
-        
         return cell
     }
     
@@ -71,15 +78,10 @@ class ToDoListViewController: UITableViewController {
     //MARK: - Add New Items
     
     @IBAction func addButtonPressed(_ sender: UIBarButtonItem){
-    
         var textField = UITextField()
-        
         let alert = UIAlertController(title: "Add New Todoey Item", message: "", preferredStyle: .alert)
-        
         let action = UIAlertAction(title: "Add Item", style: .default) { (action) in
-
             if let currentCategory = self.selectedCategory {
-               
                 do {
                 try self.realm.write {
                     let newItem = Item()
@@ -93,69 +95,67 @@ class ToDoListViewController: UITableViewController {
             }
             self.tableView.reloadData()
         }
-        
         alert.addTextField { (alertTextField) in
             alertTextField.placeholder = "Add New Item"
             textField = alertTextField
         }
-        
         let cancelAction = UIAlertAction(title: "Cancel", style: .cancel) { (action) in
         }
-        
         alert.addAction(action)
         alert.addAction(cancelAction)
-        
         present(alert, animated: true, completion: nil)
     }
-    
     
     //MARK: - TableView Delegate Methods
     
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
-        
         if let item = todoItems?[indexPath.row] {
             do {
                 try realm.write {
                     item.done = !item.done
-                    //realm.delete(item)
                 }
             } catch {
                 print("Error changing done status, \(error)")
             }
         }
         tableView.reloadData()
-
         tableView.deselectRow(at: indexPath, animated: true) // gray does not stay peremntly on the cell but instead flashes and goes back to being de-selected (fades)
-        
     }
     
     //MARK: - Model Manupulation Methods
     
     func loadItems() {
-        
         todoItems = selectedCategory?.items.sorted(byKeyPath: "title", ascending: true)
-        
         tableView.reloadData()
     }
+    
+    //MARK: - Delete Data from Swipe
+    
+    override func updateModel(at indexPath: IndexPath) {
+        if let item = todoItems?[indexPath.row] {
+            do {
+                try realm.write {
+                        realm.delete(item)
+                }
+            } catch {
+                print("Error changing done status, \(error)")
+            }
+    }
+ }
 }
 
 //MARK: - SearchBar Methods
 
 extension ToDoListViewController: UISearchBarDelegate {
-
     func searchBarSearchButtonClicked(_ searchBar: UISearchBar) {
-        
         //todoItems = todoItems?.filter("title CONTAINS[cd] %@", searchBar.text!).sorted(byKeyPath: "title", ascending: true)
         todoItems = todoItems?.filter("title CONTAINS[cd] %@", searchBar.text!).sorted(byKeyPath: "createdAt", ascending: false)
-        
         tableView.reloadData()
     }
 
     func searchBar(_ searchBar: UISearchBar, textDidChange searchText: String) {
-
         if searchBar.text?.count == 0 {
             loadItems()
-
             DispatchQueue.main.async {
                 searchBar.resignFirstResponder() //we're asking the dispatchqueue to get the main queue and then run this method on it
             }
